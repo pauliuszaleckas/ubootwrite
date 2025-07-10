@@ -1,11 +1,11 @@
 ubootwrite
 ========
 Is a simple python tool that uploads binary images to the RAM of linux systems running the U-Boot bootloader (e.g. for OpenWRT) via the serial port. It works in cases where no transfer via alternate methods (XMODEM/TFTP/BOOTM/etc.) can be made. ubootwrite has a high overhead, as the binary file is converted to ASCII and sent in 32Bit chucks, so transferring larger amounts of data can be really slow.
-The original author is "pgid69" and the original source is the [OpenWRT forum](https://forum.openwrt.org/viewtopic.php?pid=183315#p183315). The initial commit is the original version found in the forum and "pgid69" states the tool is based on [brntool](https://github.com/rvalles/brntool). As I did some adjustments for uploading data onto the Arcadyan ARV752DPW22 (Easybox 803A) and it did not seem to have a permanent home, I "forked" the code here...
+The original author is "pgid69" and the original source is the [OpenWRT forum](https://forum.openwrt.org/viewtopic.php?pid=183315#p183315). The initial commit is the original version found in the forum and "pgid69" states the tool is based on [brntool](https://github.com/rvalles/brntool).
 
 License
 ========
-Basically it can only be [GPLv3](http://opensource.org/licenses/GPL-3.0), because [brntool](https://github.com/rvalles/brntool) is. See [LICENSE.md](LICENSE.md).
+[GPLv3](http://opensource.org/licenses/GPL-3.0). See [LICENSE.md](LICENSE.md).
 
 Dependencies
 ========
@@ -37,4 +37,4 @@ FAQ
 
 I found a bug or have a suggestion
 ========
-The best way to report a bug or suggest something is to post an issue on GitHub. Try to make it simple, but descriptive and add ALL the information needed to REPRODUCE the bug. **"Does not work" is not enough!** If you can not compile, please state your system, compiler version, etc! You can also contact me via email if you want to.
+The best way to report a bug or suggest something is to post an issue on GitHub. Try to make it simple, but descriptive and add ALL the information needed to REPRODUCE the bug. **"Does not work" is not enough!** You can also submit a pull request if you have a fix or improvement.
