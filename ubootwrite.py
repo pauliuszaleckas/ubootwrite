@@ -9,10 +9,85 @@ import sys
 import zlib
 import time
 import serial
+import subprocess
 
 # The maximum size to transfer if we can determinate the size of the file (if input data comes from stdin).
 MAX_SIZE = 2 ** 30
 LINE_FEED = "\n"
+
+def check_serial_port_available(port, verbose):
+        """Check if serial port is available and not in use by another process"""
+        if verbose:
+                print(f"Checking if {port} is available...")
+        
+        # First check if the port file exists
+        if not os.path.exists(port):
+                return False, f"Port {port} does not exist"
+        
+        # Check if any process is using the port using lsof
+        process_info = find_process_using_port(port)
+        if process_info and "Unknown process" not in process_info:
+                return False, process_info
+        
+        # Try to open the port to see if it's available
+        try:
+                test_ser = serial.Serial(port, 115200, timeout=1)
+                test_ser.close()
+                if verbose:
+                        print(f"{port} is available")
+                return True, None
+        except serial.SerialException as e:
+                error_msg = str(e)
+                if "Permission denied" in error_msg or "device reports readiness" in error_msg:
+                        # Port is in use, but lsof didn't find it, try again
+                        process_info = find_process_using_port(port)
+                        if process_info and "Unknown process" not in process_info:
+                                return False, process_info
+                        else:
+                                return False, f"Port is in use: {error_msg}"
+                else:
+                        # Other error (port doesn't exist, etc.)
+                        return False, error_msg
+        except Exception as e:
+                return False, str(e)
+
+def find_process_using_port(port):
+        """Find which process is using the serial port"""
+        try:
+                # Use lsof to find processes using the port
+                result = subprocess.run(['lsof', port], capture_output=True, text=True, timeout=5)
+                if result.returncode == 0 and result.stdout.strip():
+                        # Parse the output to get process info
+                        lines = result.stdout.strip().split('\n')
+                        if len(lines) > 1:  # Skip header line
+                                process_line = lines[1]  # First process
+                                parts = process_line.split()
+                                if len(parts) >= 2:
+                                        process_name = parts[0]
+                                        pid = parts[1]
+                                        return f"Process '{process_name}' (PID {pid})"
+                        return "Unknown process"
+                else:
+                        # Try alternative method using fuser
+                        try:
+                                result = subprocess.run(['fuser', port], capture_output=True, text=True, timeout=5)
+                                if result.returncode == 0 and result.stdout.strip():
+                                        pids = result.stdout.strip().split()
+                                        if pids:
+                                                # Try to get process name for the first PID
+                                                try:
+                                                        with open(f'/proc/{pids[0]}/comm', 'r') as f:
+                                                                process_name = f.read().strip()
+                                                        return f"Process '{process_name}' (PID {pids[0]})"
+                                                except:
+                                                        return f"Process (PID {pids[0]})"
+                        except:
+                                pass
+                        return "Unknown process (lsof returned no results)"
+        except (subprocess.TimeoutExpired, subprocess.CalledProcessError, FileNotFoundError):
+                return "Unknown process (could not run lsof)"
+        except Exception:
+                return "Unknown process"
 
 # Wait for the prompt
 def getprompt(ser, verbose):
@@ -212,9 +287,27 @@ def main():
         optparser.add_option("--size", dest = "size", help = "# bytes to write", default = "0", metavar = "size")
         optparser.add_option("--big", action = "store_true", dest = "big_endian", help = "target is big-endian (default little-endian)", default = False)
         optparser.add_option("--speed", dest = "speed", help = "serial port speed (default 115200)", default = "115200", metavar = "speed")
+        optparser.add_option("--skip-check", action = "store_true", dest = "skip_check", help = "skip serial port availability check", default = False)
         (options, args) = optparser.parse_args()
         if (len(args) != 0):
                 optparser.error("incorrect number of arguments")
+
+        # Check if serial port is available before trying to open it (unless --skip-check is used)
+        if not options.skip_check:
+                port_available, process_info = check_serial_port_available(options.serial, options.verbose)
+                if not port_available:
+                        print(f"Error: Serial port {options.serial} is not available.")
+                        if process_info and "Unknown process" not in process_info:
+                                print(f"Port is being used by: {process_info}")
+                                print("Please close the other application or kill the process and try again.")
+                                print("Or use --skip-check to override this check.")
+                        else:
+                                print(f"Error details: {process_info}")
+                                print("Use --skip-check to override this check.")
+                        sys.exit(1)
+        else:
+                if options.verbose:
+                        print("Skipping port availability check (--skip-check specified)")
 
         ser = serial.Serial(options.serial, int(options.speed), timeout=0.1)
         
