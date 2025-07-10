@@ -14,26 +14,26 @@ python(3)-pyserial
 
 Overview
 ========
-Use Python (preferably 3.0+) to run the tool: ```python ubootwrite.py [OPTIONS]```.
-**Options:**
-* ```--verbose``` - Be verbose.
-* ```--serial``` - The serial port to write to, e.g. ```--serial=/dev/ttyUSB2```. It will open it with 115200 Baud, 8 data bits, one stop bit.
-* ```--write``` - The file to transfer to RAM, e.g. ```--write=openwrt-squashfs.image```.
-* ```--addr``` - The RAM start address to write to, e.g. ```--addr=0x80050000```.
-* ```--size``` - The number of bytes to transfer, e.g. ```--size=12345```. Omit to transfer the whole file.
-* ```--big``` - Target is big-endian (default little-endian).
+Use Python (preferably 3.0+) to run the tool: ```python ubootwrite.py [OPTIONS]```.  
+**Options:**  
+* ```--verbose``` - Be verbose.  
+* ```--serial``` - The serial port to write to, e.g. ```--serial=/dev/ttyUSB2```. It will open it with 115200 Baud, 8 data bits, one stop bit.  
+* ```--write``` - The file to transfer to RAM, e.g. ```--write=openwrt-squashfs.image```.  
+* ```--addr``` - The RAM start address to write to, e.g. ```--addr=0x80050000```.  
+* ```--size``` - The number of bytes to transfer, e.g. ```--size=12345```. Omit to transfer the whole file.  
+* ```--big``` - Target is big-endian (default little-endian).  
 
-**An example for a full command line could be:**
-```python ubootwrite.py --serial=/dev/ttyUSB6 --write=openwrt-squashfs.image --addr=0x80050000```
-This can take a looong time. Be patient. Once you have the data in RAM you can copy it to flash by:
-Unprotecting flash: ```protect off all```
-Erasing the sectors: ```erase [ADDRESS_IN_FLASH] +[SIZE_OF_DATA]``` (all in hex)
-Copying the data to flash: ```cp.b [RAM_ADRESS] [ADDRESS_IN_FLASH] [SIZE_OF_DATA]``` (all in hex)
+**An example for a full command line could be:**  
+```python ubootwrite.py --serial=/dev/ttyUSB6 --write=openwrt-squashfs.image --addr=0x80050000```  
+This can take a looong time. Be patient. Once you have the data in RAM you can copy it to flash by:  
+Unprotecting flash: ```protect off all```  
+Erasing the sectors: ```erase [ADDRESS_IN_FLASH] +[SIZE_OF_DATA]``` (all in hex)  
+Copying the data to flash: ```cp.b [RAM_ADRESS] [ADDRESS_IN_FLASH] [SIZE_OF_DATA]``` (all in hex)  
 
 FAQ
 ========
-**Q:** I'm on linux and I can not access the serial port somehow...
-**A:** You might need to add your USERNAME to the dialout group: ```sudo usermod -a -G dialout USERNAME``` or use sudo.
+**Q:** I'm on linux and I can not access the serial port somehow...  
+**A:** You might need to add your USERNAME to the dialout group: ```sudo usermod -a -G dialout USERNAME``` or use sudo.  
 
 I found a bug or have a suggestion
 ========
