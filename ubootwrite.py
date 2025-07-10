@@ -148,11 +148,12 @@ def main():
         optparser.add_option("--addr", dest = "addr", help = "mem address", default = "0x80500000", metavar = "addr")
         optparser.add_option("--size", dest = "size", help = "# bytes to write", default = "0", metavar = "size")
         optparser.add_option("--big", action = "store_true", dest = "big_endian", help = "target is big-endian (default little-endian)", default = False)
+        optparser.add_option("--speed", dest = "speed", help = "serial port speed (default 115200)", default = "115200", metavar = "speed")
         (options, args) = optparser.parse_args()
         if (len(args) != 0):
                 optparser.error("incorrect number of arguments")
 
-        ser = serial.Serial(options.serial, 115200, timeout=0.1)
+        ser = serial.Serial(options.serial, int(options.speed), timeout=0.1)
         
         if options.write:
                 memwrite(ser, options.write, int(options.size, 0), int(options.addr, 0), options.verbose, options.big_endian)

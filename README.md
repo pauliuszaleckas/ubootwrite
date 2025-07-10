@@ -17,7 +17,8 @@ Overview
 Use Python (preferably 3.0+) to run the tool: ```python ubootwrite.py [OPTIONS]```.  
 **Options:**  
 * ```--verbose``` - Be verbose.  
-* ```--serial``` - The serial port to write to, e.g. ```--serial=/dev/ttyUSB2```. It will open it with 115200 Baud, 8 data bits, one stop bit.  
+* ```--serial``` - The serial port to write to, e.g. ```--serial=/dev/ttyUSB2```. It will open it with 8 data bits, one stop bit.  
+* ```--speed``` - The serial port speed, e.g. ```--speed=9600``` (default 115200).  
 * ```--write``` - The file to transfer to RAM, e.g. ```--write=openwrt-squashfs.image```.  
 * ```--addr``` - The RAM start address to write to, e.g. ```--addr=0x80050000```.  
 * ```--size``` - The number of bytes to transfer, e.g. ```--size=12345```. Omit to transfer the whole file.  
