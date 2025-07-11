@@ -203,8 +203,14 @@ def memwrite(ser, path, size, start_addr, verbose, big_endian):
         addr = start_addr
         bytes_read = 0
         crc32_checksum = 0
+        totalStartTime = time.time();  # Track total time separately
         startTime = time.time();
         bytesLastSecond = 0
+
+        # Buffer to store consecutive identical values for batch writing
+        current_val = None
+        current_count = 0
+        max_batch_size = 1000  # Maximum number of consecutive words to write in one command
 
         while (bytes_read < size):
                 if ((size - bytes_read) > 4):
@@ -229,14 +235,34 @@ def memwrite(ser, path, size, start_addr, verbose, big_endian):
                 else:
                         (val, ) = struct.unpack("<L", read_bytes)
 
-                str_to_write = "mw {0:08x} {1:08x}".format(addr, val)
-                if verbose:
-                        print("Writing:" + str_to_write + "at:", "0x{0:08x}".format(addr))
+                # Check if this value is the same as the previous one
+                if val == current_val and current_count < max_batch_size:
+                        # Same value, increment count for batch writing
+                        current_count += 1
+                else:
+                        # Different value or max batch size reached, write the previous batch
+                        if current_val is not None:
+                                if current_count == 1:
+                                        # Single value, use simple mw command
+                                        str_to_write = "mw {0:08x} {1:08x}".format(addr - 4, current_val)
+                                else:
+                                        # Multiple identical values, use count parameter
+                                        str_to_write = "mw {0:08x} {1:08x} {2}".format(addr - 4 * current_count, current_val, current_count)
 
-                if not writecommand(ser, str_to_write, prompt, verbose):
-                        print("Found an error at address 0x{0:08x}, so aborting".format(addr))
-                        fd.close()
-                        return
+                                if verbose:
+                                        if current_count == 1:
+                                                print("Writing:" + str_to_write + "at:", "0x{0:08x}".format(addr - 4))
+                                        else:
+                                                print("Writing batch:" + str_to_write + "at:", "0x{0:08x}".format(addr - 4 * current_count))
+
+                                if not writecommand(ser, str_to_write, prompt, verbose):
+                                        print("Found an error at address 0x{0:08x}, so aborting".format(addr - 4 * current_count))
+                                        fd.close()
+                                        return
+
+                        # Start new batch with current value
+                        current_val = val
+                        current_count = 1
 
                 # Print progress
                 currentTime = time.time();
@@ -250,10 +276,30 @@ def memwrite(ser, path, size, start_addr, verbose, big_endian):
                 # Increment address
                 addr += 4
 
+        # Write any remaining batch
+        if current_val is not None:
+                if current_count == 1:
+                        # Single value, use simple mw command
+                        str_to_write = "mw {0:08x} {1:08x}".format(addr - 4, current_val)
+                else:
+                        # Multiple identical values, use count parameter
+                        str_to_write = "mw {0:08x} {1:08x} {2}".format(addr - 4 * current_count, current_val, current_count)
+
+                if verbose:
+                        if current_count == 1:
+                                print("Writing:" + str_to_write + "at:", "0x{0:08x}".format(addr - 4))
+                        else:
+                                print("Writing batch:" + str_to_write + "at:", "0x{0:08x}".format(addr - 4 * current_count))
+
+                if not writecommand(ser, str_to_write, prompt, verbose):
+                        print("Found an error at address 0x{0:08x}, so aborting".format(addr - 4 * current_count))
+                        fd.close()
+                        return
+
         if (bytes_read != size):
                 print("Error while reading file '", fd.name, "' at offset " + bytes_read)
         else:
-                totalTime = time.time() - startTime;
+                totalTime = time.time() - totalStartTime;
                 print("\rProgress 100%", end = '')
                 print(", {:3.1f}kb/s".format(bytes_read / totalTime / 1024), end = '')
                 print(", Total time {0}s   ".format(round(totalTime)))
