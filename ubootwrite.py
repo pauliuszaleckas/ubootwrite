@@ -19,16 +19,16 @@ def check_serial_port_available(port, verbose):
         """Check if serial port is available and not in use by another process"""
         if verbose:
                 print(f"Checking if {port} is available...")
-        
+
         # First check if the port file exists
         if not os.path.exists(port):
                 return False, f"Port {port} does not exist"
-        
+
         # Check if any process is using the port using lsof
         process_info = find_process_using_port(port)
         if process_info and "Unknown process" not in process_info:
                 return False, process_info
-        
+
         # Try to open the port to see if it's available
         try:
                 test_ser = serial.Serial(port, 115200, timeout=1)
@@ -91,11 +91,10 @@ def find_process_using_port(port):
 
 # Wait for the prompt
 def getprompt(ser, verbose):
-
         # Flush receive buffer
         while ser.read(256):
                 pass
-        
+
         # Send a linefeed to get the prompt
         ser.write(str.encode(LINE_FEED))
         # Read the response
@@ -113,10 +112,9 @@ def getprompt(ser, verbose):
 
 # Send command, verify echo, wait for prompt and return result
 def send_command(ser, command, prompt, verbose):
-
         # Write the command and a line feed
         ser.write(str.encode(command + LINE_FEED))
-        
+
         # Read and verify echo
         buf = ser.read(len(command))
         if (buf.decode() != command):
@@ -137,34 +135,31 @@ def send_command(ser, command, prompt, verbose):
                                 print("Command completed successfully")
                         # Return everything except the prompt
                         return buf[:-len(prompt)]
-        
+
         if verbose:
                 print("Prompt not received. Instead received '" + buf.decode() + "'")
         return None
 
-# Wait for the prompt and return True if received or False otherwise 
+# Wait for the prompt and return True if received or False otherwise
 def writecommand(ser, command, prompt, verbose):
-
         result = send_command(ser, command, prompt, verbose)
         return result is not None
-
-
 
 def get_uboot_crc32(ser, start_addr, size, verbose, prompt):
         """Get CRC32 from U-Boot using crc32 command"""
         if verbose:
                 print("Getting CRC32 from U-Boot...")
-        
+
         # Run U-Boot crc32 command
         crc_cmd = "crc32 {0:08x} {1:08x}".format(start_addr, size)
         if verbose:
                 print("Running:", crc_cmd)
-        
+
         # Send command and get response
         buf = send_command(ser, crc_cmd, prompt, verbose)
         if buf is None:
                 return None
-        
+
         # Parse the CRC32 value from U-Boot response
         # Response format is typically: "crc32 for 0xaddr ... 0xaddr+size ==> 0x12345678"
         try:
@@ -191,13 +186,12 @@ def get_uboot_crc32(ser, start_addr, size, verbose, prompt):
                 return None
 
 def memwrite(ser, path, size, start_addr, verbose, big_endian):
-        
         prompt = getprompt(ser, verbose)
-        
+
         if (path == "-"):
                 fd = sys.stdin
                 if (size <= 0):
-                        size = MAX_SIZE 
+                        size = MAX_SIZE
         else:
                 fd = open(path,"rb")
                 if (size <= 0):
@@ -211,9 +205,9 @@ def memwrite(ser, path, size, start_addr, verbose, big_endian):
         crc32_checksum = 0
         startTime = time.time();
         bytesLastSecond = 0
-        
+
         while (bytes_read < size):
-                if ((size - bytes_read) > 4):           
+                if ((size - bytes_read) > 4):
                         read_bytes = fd.read(4);
                 else:
                         read_bytes = fd.read(size - bytes_read);
@@ -226,7 +220,7 @@ def memwrite(ser, path, size, start_addr, verbose, big_endian):
                 bytesLastSecond += len(read_bytes)
                 bytes_read += len(read_bytes)
                 crc32_checksum = zlib.crc32(read_bytes, crc32_checksum) & 0xFFFFFFFF
-                
+
                 while (len(read_bytes) < 4):
                         read_bytes += b'\x00'
 
@@ -243,7 +237,7 @@ def memwrite(ser, path, size, start_addr, verbose, big_endian):
                         print("Found an error at address 0x{0:08x}, so aborting".format(addr))
                         fd.close()
                         return
-                
+
                 # Print progress
                 currentTime = time.time();
                 if ((currentTime - startTime) > 1):
@@ -310,7 +304,7 @@ def main():
                         print("Skipping port availability check (--skip-check specified)")
 
         ser = serial.Serial(options.serial, int(options.speed), timeout=0.1)
-        
+
         # Send Ctrl+C to clear any pending input and ensure a clean prompt
         ser.write(b'\x03')
         time.sleep(0.2)  # Give U-Boot a moment to process Ctrl+C
@@ -318,7 +312,7 @@ def main():
         ser.write(str.encode(LINE_FEED))
         ser.write(str.encode(LINE_FEED))
         time.sleep(0.2)
-        
+
         if options.write:
                 memwrite(ser, options.write, int(options.size, 0), int(options.addr, 0), options.verbose, options.big_endian)
         return
