@@ -15,6 +15,22 @@ import subprocess
 MAX_SIZE = 2 ** 30
 LINE_FEED = "\n"
 
+def format_duration(seconds):
+        """Format duration in seconds to human readable string"""
+        if seconds < 1:
+                return f"{seconds:.3f}s"
+        elif seconds < 60:
+                return f"{seconds:.1f}s"
+        elif seconds < 3600:
+                minutes = int(seconds // 60)
+                secs = seconds % 60
+                return f"{minutes}m {secs:.1f}s"
+        else:
+                hours = int(seconds // 3600)
+                minutes = int((seconds % 3600) // 60)
+                secs = seconds % 60
+                return f"{hours}h {minutes}m {secs:.1f}s"
+
 def check_serial_port_available(port, verbose):
         """Check if serial port is available and not in use by another process"""
         if verbose:
@@ -267,9 +283,10 @@ def memwrite(ser, path, size, start_addr, verbose, big_endian):
                 # Print progress
                 currentTime = time.time();
                 if ((currentTime - startTime) > 1):
+                        eta_seconds = (size - bytes_read) / bytesLastSecond / (currentTime - startTime)
                         print("\rProgress {:2.1f}%".format((bytes_read * 100) / size), end = '')
                         print(", {:3.1f}kb/s".format(bytesLastSecond / (currentTime - startTime) / 1024), end = '')
-                        print(", ETA {0}s   ".format(round((size - bytes_read) / bytesLastSecond / (currentTime - startTime))), end = '')
+                        print(", ETA {}   ".format(format_duration(eta_seconds)), end = '')
                         bytesLastSecond = 0
                         startTime = time.time();
 
@@ -302,7 +319,7 @@ def memwrite(ser, path, size, start_addr, verbose, big_endian):
                 totalTime = time.time() - totalStartTime;
                 print("\rProgress 100%", end = '')
                 print(", {:3.1f}kb/s".format(bytes_read / totalTime / 1024), end = '')
-                print(", Total time {0}s   ".format(round(totalTime)))
+                print(", Total time {}   ".format(format_duration(totalTime)))
                 # Automatically verify CRC using U-Boot command
                 uboot_crc = get_uboot_crc32(ser, start_addr, bytes_read, verbose, prompt)
                 if uboot_crc is not None:
