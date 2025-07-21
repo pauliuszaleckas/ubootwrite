@@ -15,6 +15,9 @@ import subprocess
 MAX_SIZE = 2 ** 30
 LINE_FEED = "\n"
 
+# Global verbose print function
+verboseprint = lambda *a, **k: None
+
 def format_duration(seconds):
         """Format duration in seconds to human readable string"""
         if seconds < 1:
@@ -31,10 +34,9 @@ def format_duration(seconds):
                 secs = seconds % 60
                 return f"{hours}h {minutes}m {secs:.1f}s"
 
-def check_serial_port_available(port, verbose):
+def check_serial_port_available(port):
         """Check if serial port is available and not in use by another process"""
-        if verbose:
-                print(f"Checking if {port} is available...")
+        verboseprint(f"Checking if {port} is available...")
 
         # First check if the port file exists
         if not os.path.exists(port):
@@ -49,8 +51,7 @@ def check_serial_port_available(port, verbose):
         try:
                 test_ser = serial.Serial(port, 115200, timeout=1)
                 test_ser.close()
-                if verbose:
-                        print(f"{port} is available")
+                verboseprint(f"{port} is available")
                 return True, None
         except serial.SerialException as e:
                 error_msg = str(e)
@@ -106,7 +107,7 @@ def find_process_using_port(port):
                 return "Unknown process"
 
 # Wait for the prompt
-def getprompt(ser, verbose):
+def getprompt(ser):
         # Flush receive buffer
         while ser.read(256):
                 pass
@@ -119,23 +120,21 @@ def getprompt(ser, verbose):
                 # Extract just the last line (the prompt)
                 lines = buf.decode().replace('\r', '\n').split('\n')
                 prompt = lines[-1].encode()
-                if verbose:
-                        print("Prompt is '" + prompt.decode() + "'")
+                verboseprint("Prompt is '" + prompt.decode() + "'")
                 return prompt
         else:
                 print("Error: Could not get U-Boot prompt")
                 sys.exit(1)
 
 # Send command, verify echo, wait for prompt and return result
-def send_command(ser, command, prompt, verbose):
+def send_command(ser, command, prompt):
         # Write the command and a line feed
         ser.write(str.encode(command + LINE_FEED))
 
         # Read and verify echo
         buf = ser.read(len(command))
         if (buf.decode() != command):
-                if verbose:
-                        print("Echo mismatch. Expected '{0}', got '{1}'".format(command, buf.decode()))
+                verboseprint("Echo mismatch. Expected '{0}', got '{1}'".format(command, buf.decode()))
                 return None
 
         # Read response byte by byte until we find the prompt
@@ -147,32 +146,28 @@ def send_command(ser, command, prompt, verbose):
                 buf += byte
                 # Check if we have the prompt at the end
                 if buf.endswith(prompt):
-                        if verbose:
-                                print("Command completed successfully")
+                        verboseprint("Command completed successfully")
                         # Return everything except the prompt
                         return buf[:-len(prompt)]
 
-        if verbose:
-                print("Prompt not received. Instead received '" + buf.decode() + "'")
+        verboseprint("Prompt not received. Instead received '" + buf.decode() + "'")
         return None
 
 # Wait for the prompt and return True if received or False otherwise
-def writecommand(ser, command, prompt, verbose):
-        result = send_command(ser, command, prompt, verbose)
+def writecommand(ser, command, prompt):
+        result = send_command(ser, command, prompt)
         return result is not None
 
-def get_uboot_crc32(ser, start_addr, size, verbose, prompt):
+def get_uboot_crc32(ser, start_addr, size, prompt):
         """Get CRC32 from U-Boot using crc32 command"""
-        if verbose:
-                print("Getting CRC32 from U-Boot...")
+        verboseprint("Getting CRC32 from U-Boot...")
 
         # Run U-Boot crc32 command
         crc_cmd = "crc32 {0:08x} {1:08x}".format(start_addr, size)
-        if verbose:
-                print("Running:", crc_cmd)
+        verboseprint("Running:", crc_cmd)
 
         # Send command and get response
-        buf = send_command(ser, crc_cmd, prompt, verbose)
+        buf = send_command(ser, crc_cmd, prompt)
         if buf is None:
                 return None
 
@@ -180,17 +175,14 @@ def get_uboot_crc32(ser, start_addr, size, verbose, prompt):
         # Response format is typically: "crc32 for 0xaddr ... 0xaddr+size ==> 0x12345678"
         try:
                 response_str = buf.decode()
-                if verbose:
-                        print("Full CRC32 response: '{0}'".format(repr(response_str)))
+                verboseprint("Full CRC32 response: '{0}'".format(repr(response_str)))
                 # Look for the CRC32 value (8 hex digits after "==>")
                 if "==>" in response_str:
                         crc_part = response_str.split("==>")[1]
-                        if verbose:
-                                print("CRC part after '==>': '{0}'".format(repr(crc_part)))
+                        verboseprint("CRC part after '==>': '{0}'".format(repr(crc_part)))
                         # Clean up the CRC value - remove whitespace, carriage returns, and prompt
                         crc_hex = crc_part.split()[0].strip()  # Take first word, remove whitespace
-                        if verbose:
-                                print("Extracted CRC hex: '{0}'".format(crc_hex))
+                        verboseprint("Extracted CRC hex: '{0}'".format(crc_hex))
                         # Extract the hex value
                         crc_val = int(crc_hex, 16)
                         return crc_val
@@ -201,8 +193,8 @@ def get_uboot_crc32(ser, start_addr, size, verbose, prompt):
                 print("Error parsing CRC32 response:", e)
                 return None
 
-def memwrite(ser, path, size, start_addr, verbose, big_endian):
-        prompt = getprompt(ser, verbose)
+def memwrite(ser, path, size, start_addr, big_endian):
+        prompt = getprompt(ser)
 
         if (path == "-"):
                 fd = sys.stdin
@@ -261,17 +253,13 @@ def memwrite(ser, path, size, start_addr, verbose, big_endian):
                                 if current_count == 1:
                                         # Single value, use simple mw command
                                         str_to_write = "mw {0:08x} {1:08x}".format(addr - 4, current_val)
+                                        verboseprint("Writing:" + str_to_write)
                                 else:
                                         # Multiple identical values, use count parameter
                                         str_to_write = "mw {0:08x} {1:08x} {2}".format(addr - 4 * current_count, current_val, current_count)
+                                        verboseprint("Writing batch:" + str_to_write)
 
-                                if verbose:
-                                        if current_count == 1:
-                                                print("Writing:" + str_to_write + "at:", "0x{0:08x}".format(addr - 4))
-                                        else:
-                                                print("Writing batch:" + str_to_write + "at:", "0x{0:08x}".format(addr - 4 * current_count))
-
-                                if not writecommand(ser, str_to_write, prompt, verbose):
+                                if not writecommand(ser, str_to_write, prompt):
                                         print("Found an error at address 0x{0:08x}, so aborting".format(addr - 4 * current_count))
                                         fd.close()
                                         return
@@ -298,17 +286,13 @@ def memwrite(ser, path, size, start_addr, verbose, big_endian):
                 if current_count == 1:
                         # Single value, use simple mw command
                         str_to_write = "mw {0:08x} {1:08x}".format(addr - 4, current_val)
+                        verboseprint("Writing:" + str_to_write)
                 else:
                         # Multiple identical values, use count parameter
                         str_to_write = "mw {0:08x} {1:08x} {2}".format(addr - 4 * current_count, current_val, current_count)
+                        verboseprint("Writing batch:" + str_to_write)
 
-                if verbose:
-                        if current_count == 1:
-                                print("Writing:" + str_to_write + "at:", "0x{0:08x}".format(addr - 4))
-                        else:
-                                print("Writing batch:" + str_to_write + "at:", "0x{0:08x}".format(addr - 4 * current_count))
-
-                if not writecommand(ser, str_to_write, prompt, verbose):
+                if not writecommand(ser, str_to_write, prompt):
                         print("Found an error at address 0x{0:08x}, so aborting".format(addr - 4 * current_count))
                         fd.close()
                         return
@@ -321,7 +305,7 @@ def memwrite(ser, path, size, start_addr, verbose, big_endian):
                 print(", {:3.1f}kb/s".format(bytes_read / totalTime / 1024), end = '')
                 print(", Total time {}   ".format(format_duration(totalTime)))
                 # Automatically verify CRC using U-Boot command
-                uboot_crc = get_uboot_crc32(ser, start_addr, bytes_read, verbose, prompt)
+                uboot_crc = get_uboot_crc32(ser, start_addr, bytes_read, prompt)
                 if uboot_crc is not None:
                         if uboot_crc == crc32_checksum:
                                 print("File successfully written. CRC32 verification PASSED: {0:08x}".format(uboot_crc))
@@ -349,9 +333,13 @@ def main():
         if (len(args) != 0):
                 optparser.error("incorrect number of arguments")
 
+        # Set up global verbose print function
+        global verboseprint
+        verboseprint = print if options.verbose else lambda *a, **k: None
+
         # Check if serial port is available before trying to open it (unless --skip-check is used)
         if not options.skip_check:
-                port_available, process_info = check_serial_port_available(options.serial, options.verbose)
+                port_available, process_info = check_serial_port_available(options.serial)
                 if not port_available:
                         print(f"Error: Serial port {options.serial} is not available.")
                         if process_info and "Unknown process" not in process_info:
@@ -363,8 +351,7 @@ def main():
                                 print("Use --skip-check to override this check.")
                         sys.exit(1)
         else:
-                if options.verbose:
-                        print("Skipping port availability check (--skip-check specified)")
+                verboseprint("Skipping port availability check (--skip-check specified)")
 
         ser = serial.Serial(options.serial, int(options.speed), timeout=0.1)
 
@@ -377,7 +364,7 @@ def main():
         time.sleep(0.2)
 
         if options.write:
-                memwrite(ser, options.write, int(options.size, 0), int(options.addr, 0), options.verbose, options.big_endian)
+                memwrite(ser, options.write, int(options.size, 0), int(options.addr, 0), options.big_endian)
         return
 
 if __name__ == '__main__':
