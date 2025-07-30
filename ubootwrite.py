@@ -201,7 +201,17 @@ def memwrite(ser, path, size, start_addr, big_endian):
                 if (size <= 0):
                         size = MAX_SIZE
         else:
-                fd = open(path,"rb")
+                # Check if file exists before trying to open it
+                if not os.path.exists(path):
+                        print(f"Error: Input file '{path}' not found")
+                        return False
+
+                try:
+                        fd = open(path,"rb")
+                except IOError as e:
+                        print(f"Error: Cannot open file '{path}': {e}")
+                        return False
+
                 if (size <= 0):
                         # Get the size of the file
                         fd.seek(0, os.SEEK_END);
@@ -262,7 +272,7 @@ def memwrite(ser, path, size, start_addr, big_endian):
                                 if not writecommand(ser, str_to_write, prompt):
                                         print("Found an error at address 0x{0:08x}, so aborting".format(addr - 4 * current_count))
                                         fd.close()
-                                        return
+                                        return False
 
                         # Start new batch with current value
                         current_val = val
@@ -295,10 +305,12 @@ def memwrite(ser, path, size, start_addr, big_endian):
                 if not writecommand(ser, str_to_write, prompt):
                         print("Found an error at address 0x{0:08x}, so aborting".format(addr - 4 * current_count))
                         fd.close()
-                        return
+                        return False
 
         if (bytes_read != size):
                 print("Error while reading file '", fd.name, "' at offset " + bytes_read)
+                fd.close()
+                return False
         else:
                 totalTime = time.time() - totalStartTime;
                 print("\rProgress 100%", end = '')
@@ -316,8 +328,22 @@ def memwrite(ser, path, size, start_addr, big_endian):
                 else:
                         print("File successfully written. CRC32 verification failed - could not get CRC from U-Boot")
 
+                # Set fileaddr and filesize environment variables
+                verboseprint("Setting fileaddr and filesize environment variables...")
+                setenv_cmd = "setenv fileaddr {0:08x}".format(start_addr)
+                if not writecommand(ser, setenv_cmd, prompt):
+                        print("Warning: Failed to set fileaddr environment variable")
+                else:
+                        verboseprint("fileaddr set to {0:08x}".format(start_addr))
+
+                setenv_cmd = "setenv filesize {0:08x}".format(bytes_read)
+                if not writecommand(ser, setenv_cmd, prompt):
+                        print("Warning: Failed to set filesize environment variable")
+                else:
+                        verboseprint("filesize set to {0:08x}".format(bytes_read))
+
         fd.close()
-        return
+        return True
 
 def main():
         optparser = OptionParser("usage: %prog [options]", version = "%prog 0.3")
@@ -342,7 +368,10 @@ def main():
                 port_available, process_info = check_serial_port_available(options.serial)
                 if not port_available:
                         print(f"Error: Serial port {options.serial} is not available.")
-                        if process_info and "Unknown process" not in process_info:
+                        if "does not exist" in process_info:
+                                print(f"Error details: {process_info}")
+                                print("Please check the port name or use --skip-check to override this check.")
+                        elif process_info and "Unknown process" not in process_info:
                                 print(f"Port is being used by: {process_info}")
                                 print("Please close the other application or kill the process and try again.")
                                 print("Or use --skip-check to override this check.")
@@ -364,8 +393,10 @@ def main():
         time.sleep(0.2)
 
         if options.write:
-                memwrite(ser, options.write, int(options.size, 0), int(options.addr, 0), options.big_endian)
-        return
+                success = memwrite(ser, options.write, int(options.size, 0), int(options.addr, 0), options.big_endian)
+                if not success:
+                        return 1
+        return 0
 
 if __name__ == '__main__':
         main()
